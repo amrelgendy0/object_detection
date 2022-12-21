@@ -2,12 +2,14 @@ import 'dart:io' as io;
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:google_mlkit_object_detection/google_mlkit_object_detection.dart';
 import 'package:path_provider/path_provider.dart';
 import '../widgets/object_detector_painter.dart';
 import 'camera_view.dart';
 import 'package:path/path.dart';
 
+final flutterTts = FlutterTts();
 
 class ObjectDetectorView extends StatefulWidget {
   @override
@@ -73,6 +75,8 @@ class _ObjectDetectorView extends State<ObjectDetectorView> {
 
     // uncomment next lines if you want to use a local model
     // make sure to add tflite model to assets/ml
+    await flutterTts.awaitSpeakCompletion(true);
+    await flutterTts.setSpeechRate(1.1);
     final path = 'assets/ml/object_labeler.tflite';
     final modelPath = await _getModel(path);
     final options = LocalObjectDetectorOptions(
@@ -115,6 +119,10 @@ class _ObjectDetectorView extends State<ObjectDetectorView> {
           inputImage.inputImageData!.imageRotation,
           inputImage.inputImageData!.size);
       _customPaint = CustomPaint(painter: painter);
+      await flutterTts.stop();
+      await Future.forEach(objects, (DetectedObject element) async {
+        await runTextToSpeechPlur(element.labels);
+      });
     } else {
       String text = 'Objects found: ${objects.length}\n\n';
       for (final object in objects) {
@@ -144,5 +152,23 @@ class _ObjectDetectorView extends State<ObjectDetectorView> {
           .asUint8List(byteData.offsetInBytes, byteData.lengthInBytes));
     }
     return file.path;
+  }
+}
+
+Future<void> runTextToSpeechPlur(List<Label> string) async {
+  List<String> toRead = [];
+
+  string.forEach((element) {
+    if (element.confidence > 0.75) {
+      toRead.add(element.text);
+    }
+  });
+
+  if (toRead.isEmpty) {
+    return;
+  } else {
+    String toReadString = toRead.join("and ");
+    print(toReadString);
+    await flutterTts.speak("$toReadString");
   }
 }
